@@ -16,7 +16,7 @@
 Python package setup file.
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name="seq2seq",
@@ -29,4 +29,5 @@ setup(
     ],
     extras_require={'tensorflow': ['tensorflow'],
                     'tensorflow with gpu': ['tensorflow-gpu']},
+    packages=find_packages(),
 )
