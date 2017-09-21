@@ -164,3 +164,44 @@ class InitialStateBridge(Bridge):
     # Shape back into required state size
     initial_state = tf.split(initial_state_flat, state_size_splits, axis=1)
     return nest.pack_sequence_as(self.decoder_state_size, initial_state)
+
+
+class DeepInitialStateBridge(InitialStateBridge):
+
+  def __init__(self, encoder_outputs, decoder_state_size, params, mode):
+    super(DeepInitialStateBridge, self).__init__(encoder_outputs,
+                                                 decoder_state_size, params, mode)
+    self._layer_dims = self.params["layer_dims"]
+
+  @staticmethod
+  def default_params():
+    params = InitialStateBridge.default_params()
+    params.update({
+        "layer_dims": [64, 64],
+    })
+    return params
+
+  def _create(self):
+    # Concat bridge inputs on the depth dimensions
+    bridge_input = nest.map_structure(
+        lambda x: tf.reshape(x, [self.batch_size, _total_tensor_depth(x)]),
+        self._bridge_input)
+    bridge_input_flat = nest.flatten([bridge_input])
+    bridge_input_concat = tf.concat(bridge_input_flat, 1)
+
+    state_size_splits = nest.flatten(self.decoder_state_size)
+    total_decoder_state_size = sum(state_size_splits)
+
+    # Pass bridge inputs through a series of fully connected layers
+    current_inputs = bridge_input_concat
+    layer_dims = self._layer_dims + [total_decoder_state_size]
+    for d in layer_dims:
+      current_inputs = tf.contrib.layers.fully_connected(
+          inputs=current_inputs,
+          num_outputs=d,
+          activation_fn=self._activation_fn)
+    initial_state_flat = current_inputs
+
+    # Shape back into required state size
+    initial_state = tf.split(initial_state_flat, state_size_splits, axis=1)
+    return nest.pack_sequence_as(self.decoder_state_size, initial_state)
